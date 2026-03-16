@@ -64,6 +64,13 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => <TabIcon icon="⚙️" focused={focused} />,
         }}
       />
+      <Tabs.Screen
+        name="add-item"
+        options={{
+          title: 'Add Item',
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
