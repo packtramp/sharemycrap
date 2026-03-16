@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, Modal,
   Pressable, ActivityIndicator, TextInput, Platform, Alert,
@@ -44,7 +44,7 @@ export default function GroupsScreen() {
 
   const fetchGroups = useCallback(async () => {
     const user = getAuth().currentUser;
-    if (!user) { setLoading(false); return; }
+    if (!user) { setLoading(false); setInitialLoad(false); return; }
     try {
       const q = query(
         collection(db, 'groups'),
@@ -57,14 +57,25 @@ export default function GroupsScreen() {
       console.error('Error fetching groups:', err);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      fetchGroups().then(() => setInitialLoad(false));
+      fetchGroups();
     }, [fetchGroups])
   );
+
+  // Retry fetch when auth becomes ready (handles race condition)
+  useEffect(() => {
+    const unsub = getAuth().onAuthStateChanged((user) => {
+      if (user && groups.length === 0 && !loading) {
+        fetchGroups();
+      }
+    });
+    return unsub;
+  }, [fetchGroups, groups.length, loading]);
 
   const handleCreate = async () => {
     const user = getAuth().currentUser;
@@ -120,7 +131,7 @@ export default function GroupsScreen() {
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.7}
-        onPress={() => router.push(`/group-detail?id=${item.id}` as any)}
+        onPress={() => router.push(`/group-detail?id=${item.id}&name=${encodeURIComponent(item.name)}&memberCount=${item.memberCount}` as any)}
       >
         <View style={styles.groupIcon}>
           <Text style={styles.groupIconText}>{letter}</Text>

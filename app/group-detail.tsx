@@ -54,11 +54,14 @@ const generateCode = () => {
 export default function GroupDetailScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const [group, setGroup] = useState<GroupDoc | null>(null);
+  const { id, name: paramName, memberCount: paramMemberCount } = useLocalSearchParams<{ id: string; name?: string; memberCount?: string }>();
+  const [group, setGroup] = useState<GroupDoc | null>(
+    paramName ? { name: paramName, memberCount: Number(paramMemberCount) || 0, memberIds: [], createdBy: '', createdAt: null } as GroupDoc : null
+  );
   const [members, setMembers] = useState<Member[]>([]);
   const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [copied, setCopied] = useState(false);
@@ -66,47 +69,36 @@ export default function GroupDetailScreen() {
   const uid = getAuth().currentUser?.uid;
   const isAdmin = group?.createdBy === uid;
 
-  // Set dynamic header title
+  // Set dynamic header title immediately from params
   useLayoutEffect(() => {
-    if (group?.name) {
-      navigation.setOptions({ title: group.name });
+    const title = group?.name || paramName;
+    if (title) {
+      navigation.setOptions({ title });
     }
-  }, [group?.name, navigation]);
+  }, [group?.name, paramName, navigation]);
 
   useEffect(() => {
     if (!id) return;
-    fetchAll();
-  }, [id]);
+    // Fetch group doc
+    getDoc(doc(db, 'groups', id)).then((snap) => {
+      if (snap.exists()) setGroup(snap.data() as GroupDoc);
+    }).catch((err) => console.error('Error fetching group:', err));
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
-      const [groupSnap, membersSnap, itemsSnap] = await Promise.all([
-        getDoc(doc(db, 'groups', id!)),
-        getDocs(collection(db, 'groups', id!, 'members')),
-        getDocs(query(collection(db, 'items'), where('sharedWithGroups', 'array-contains', id))),
-      ]);
-
-      if (groupSnap.exists()) {
-        setGroup(groupSnap.data() as GroupDoc);
-      }
-
-      const fetched: Member[] = membersSnap.docs.map((d) => ({
-        id: d.id, ...d.data(),
-      })) as Member[];
+    // Fetch members (parallel)
+    getDocs(collection(db, 'groups', id, 'members')).then((snap) => {
+      const fetched: Member[] = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Member[];
       fetched.sort((a, b) => (a.role === 'admin' ? -1 : 1));
       setMembers(fetched);
+    }).catch((err) => console.error('Error fetching members:', err))
+      .finally(() => setLoadingMembers(false));
 
-      const fetchedItems: Item[] = itemsSnap.docs.map((d) => ({
-        id: d.id, ...d.data(),
-      })) as Item[];
-      setItems(fetchedItems);
-    } catch (err) {
-      console.error('Error fetching group detail:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Fetch shared items (parallel)
+    getDocs(query(collection(db, 'items'), where('sharedWithGroups', 'array-contains', id))).then((snap) => {
+      const fetched: Item[] = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Item[];
+      setItems(fetched);
+    }).catch((err) => console.error('Error fetching items:', err))
+      .finally(() => setLoadingItems(false));
+  }, [id]);
 
   const handleInvite = async () => {
     if (group?.inviteCode) {
@@ -143,15 +135,7 @@ export default function GroupDetailScreen() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
-
-  if (!group) {
+  if (!group && !paramName) {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>Group not found</Text>
@@ -192,7 +176,9 @@ export default function GroupDetailScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.card}>
-        {members.length === 0 ? (
+        {loadingMembers ? (
+          <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: 16 }} />
+        ) : members.length === 0 ? (
           <Text style={styles.emptyText}>No members found</Text>
         ) : (
           members.map((m, i) => (
@@ -221,7 +207,11 @@ export default function GroupDetailScreen() {
           <Text style={styles.sectionCount}>{items.length}</Text>
         </View>
       </View>
-      {items.length === 0 ? (
+      {loadingItems ? (
+        <View style={styles.card}>
+          <ActivityIndicator size="small" color={Colors.primary} style={{ paddingVertical: 16 }} />
+        </View>
+      ) : items.length === 0 ? (
         <View style={styles.card}>
           <View style={styles.emptyItems}>
             <Text style={styles.emptyItemsIcon}>📦</Text>
