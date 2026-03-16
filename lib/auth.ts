@@ -8,6 +8,10 @@ import {
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
+export function getCurrentUser() {
+  return auth.currentUser;
+}
+
 export { onAuthStateChanged };
 
 export async function signUpWithEmail(email: string, password: string, displayName: string) {

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../../lib/firebase';
 import { Colors } from '../../constants/Colors';
@@ -41,8 +41,7 @@ export default function MyStuffScreen() {
     try {
       const q = query(
         collection(db, 'items'),
-        where('ownerId', '==', user.uid),
-        orderBy('createdAt', 'desc')
+        where('ownerId', '==', user.uid)
       );
       const snap = await getDocs(q);
       const fetched: Item[] = snap.docs.map((d) => ({

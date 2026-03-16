@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signOut } from '../../lib/auth';
 import { Colors } from '../../constants/Colors';
@@ -48,7 +48,7 @@ const SECTIONS: SettingsSection[] = [
     items: [
       { icon: 'ℹ️', label: 'About', detail: `v${APP_VERSION}` },
       { icon: '📄', label: 'Legal', detail: 'TOS, Privacy', route: '/settings/legal' },
-      { icon: '💬', label: 'Send Feedback', detail: 'Bug or feature', action: () => Linking.openURL('mailto:robdorsett@gmail.com?subject=ShareMyCrap%20Feedback%20(v' + APP_VERSION + ')') },
+      { icon: '💬', label: 'Send Feedback', detail: 'Bug or feature', route: '/feedback' },
       { icon: '🗑️', label: 'Delete Account', danger: true },
     ],
   },
