@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { StatusBar } from 'expo-status-bar';
@@ -42,7 +42,24 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="dark" />
-      <Slot />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: Colors.card },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+          headerBackTitle: 'Back',
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="group-detail" options={{ title: 'Group' }} />
+        <Stack.Screen name="item-detail" options={{ title: 'Item' }} />
+        <Stack.Screen name="borrow-request" options={{ title: 'Borrow Request' }} />
+        <Stack.Screen name="borrow-detail" options={{ title: 'Borrow' }} />
+        <Stack.Screen name="friends" options={{ title: 'My Friends' }} />
+        <Stack.Screen name="feedback" options={{ title: 'Send Feedback' }} />
+        <Stack.Screen name="ai-add-item" options={{ title: 'AI Add Item' }} />
+      </Stack>
     </>
   );
 }

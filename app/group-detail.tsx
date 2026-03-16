@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal,
   Pressable, ActivityIndicator, Platform, Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   doc, getDoc, collection, getDocs, query, where, updateDoc,
 } from 'firebase/firestore';
@@ -53,6 +53,7 @@ const generateCode = () => {
 
 export default function GroupDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [group, setGroup] = useState<GroupDoc | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -64,6 +65,13 @@ export default function GroupDetailScreen() {
 
   const uid = getAuth().currentUser?.uid;
   const isAdmin = group?.createdBy === uid;
+
+  // Set dynamic header title
+  useLayoutEffect(() => {
+    if (group?.name) {
+      navigation.setOptions({ title: group.name });
+    }
+  }, [group?.name, navigation]);
 
   useEffect(() => {
     if (!id) return;
@@ -155,101 +163,100 @@ export default function GroupDetailScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-          <Text style={styles.backArrow}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{group.name}</Text>
-        <TouchableOpacity onPress={handleInvite} hitSlop={12}>
-          <Text style={styles.inviteBtn}>Invite</Text>
-        </TouchableOpacity>
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      {/* Group Info Card */}
+      <View style={styles.card}>
+        <View style={styles.infoRow}>
+          <Text style={styles.groupName}>{group.name}</Text>
+          {isAdmin && (
+            <View style={styles.adminBadge}>
+              <Text style={styles.adminBadgeText}>Admin</Text>
+            </View>
+          )}
+        </View>
+        {!!group.description && <Text style={styles.groupDesc}>{group.description}</Text>}
+        <View style={styles.metaRow}>
+          <Text style={styles.metaText}>👥 {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}</Text>
+          {group.createdAt && <Text style={styles.metaText}>📅 Created {formatDate(group.createdAt)}</Text>}
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Group Info Card */}
-        <View style={styles.card}>
-          <View style={styles.infoRow}>
-            <Text style={styles.groupName}>{group.name}</Text>
-            {isAdmin && (
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminBadgeText}>Admin</Text>
-              </View>
-            )}
-          </View>
-          {!!group.description && <Text style={styles.groupDesc}>{group.description}</Text>}
-          <View style={styles.metaRow}>
-            <Text style={styles.metaText}>👥 {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}</Text>
-            {group.createdAt && <Text style={styles.metaText}>📅 Created {formatDate(group.createdAt)}</Text>}
-          </View>
-        </View>
-
-        {/* Members Section */}
-        <View style={styles.sectionHeader}>
+      {/* Members Section */}
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionLeft}>
           <Text style={styles.sectionTitle}>MEMBERS</Text>
           <Text style={styles.sectionCount}>{members.length}</Text>
         </View>
-        <View style={styles.card}>
-          {members.length === 0 ? (
-            <Text style={styles.emptyText}>No members found</Text>
-          ) : (
-            members.map((m, i) => (
-              <View key={m.id} style={[styles.memberRow, i < members.length - 1 && styles.memberBorder]}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{(m.displayName || m.email || '?').charAt(0).toUpperCase()}</Text>
-                </View>
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName} numberOfLines={1}>{m.displayName || 'Unknown'}</Text>
-                  <Text style={styles.memberEmail} numberOfLines={1}>{m.email}</Text>
-                </View>
-                <View style={[styles.roleBadge, m.role === 'admin' ? styles.roleAdmin : styles.roleMember]}>
-                  <Text style={[styles.roleText, m.role === 'admin' ? styles.roleAdminText : styles.roleMemberText]}>
-                    {m.role === 'admin' ? 'Admin' : 'Member'}
-                  </Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-
-        {/* Shared Items Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>SHARED ITEMS</Text>
-          <Text style={styles.sectionCount}>{items.length}</Text>
-        </View>
-        {items.length === 0 ? (
-          <View style={styles.card}>
-            <View style={styles.emptyItems}>
-              <Text style={styles.emptyItemsIcon}>📦</Text>
-              <Text style={styles.emptyItemsTitle}>No items shared yet</Text>
-              <Text style={styles.emptyItemsSubtitle}>Share items from My Stuff to this group</Text>
-            </View>
-          </View>
+        <TouchableOpacity onPress={handleInvite} style={styles.inviteBtn} activeOpacity={0.7}>
+          <Text style={styles.inviteBtnText}>+ Invite</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.card}>
+        {members.length === 0 ? (
+          <Text style={styles.emptyText}>No members found</Text>
         ) : (
-          items.map((item) => (
-            <View key={item.id} style={styles.itemCard}>
-              <View style={styles.itemPhoto}>
-                <Text style={styles.itemPhotoEmoji}>📷</Text>
+          members.map((m, i) => (
+            <View key={m.id} style={[styles.memberRow, i < members.length - 1 && styles.memberBorder]}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{(m.displayName || m.email || '?').charAt(0).toUpperCase()}</Text>
               </View>
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
-                <Text style={styles.itemMeta}>{item.category}</Text>
-                <View style={styles.itemFooter}>
-                  <Text style={styles.itemOwner}>{item.ownerName || 'Unknown'}</Text>
-                  {!!item.condition && (
-                    <View style={styles.conditionBadge}>
-                      <Text style={styles.conditionText}>{item.condition}</Text>
-                    </View>
-                  )}
-                </View>
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberName} numberOfLines={1}>{m.displayName || 'Unknown'}</Text>
+                <Text style={styles.memberEmail} numberOfLines={1}>{m.email}</Text>
+              </View>
+              <View style={[styles.roleBadge, m.role === 'admin' ? styles.roleAdmin : styles.roleMember]}>
+                <Text style={[styles.roleText, m.role === 'admin' ? styles.roleAdminText : styles.roleMemberText]}>
+                  {m.role === 'admin' ? 'Admin' : 'Member'}
+                </Text>
               </View>
             </View>
           ))
         )}
+      </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
+      {/* Shared Items Section */}
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionLeft}>
+          <Text style={styles.sectionTitle}>SHARED ITEMS</Text>
+          <Text style={styles.sectionCount}>{items.length}</Text>
+        </View>
+      </View>
+      {items.length === 0 ? (
+        <View style={styles.card}>
+          <View style={styles.emptyItems}>
+            <Text style={styles.emptyItemsIcon}>📦</Text>
+            <Text style={styles.emptyItemsTitle}>No items shared yet</Text>
+            <Text style={styles.emptyItemsSubtitle}>Share items from My Stuff to this group</Text>
+          </View>
+        </View>
+      ) : (
+        items.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.itemCard}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/item-detail?id=${item.id}` as any)}
+          >
+            <View style={styles.itemPhoto}>
+              <Text style={styles.itemPhotoEmoji}>📷</Text>
+            </View>
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
+              <Text style={styles.itemMeta}>{item.category}</Text>
+              <View style={styles.itemFooter}>
+                <Text style={styles.itemOwner}>{item.ownerName || 'Unknown'}</Text>
+                {!!item.condition && (
+                  <View style={styles.conditionBadge}>
+                    <Text style={styles.conditionText}>{item.condition}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
+
+      <View style={{ height: 40 }} />
 
       {/* Invite Code Modal */}
       <Modal visible={inviteOpen} transparent animationType="fade">
@@ -270,7 +277,7 @@ export default function GroupDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -280,15 +287,6 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, color: Colors.textMuted, marginBottom: 16 },
   backBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
   backBtnText: { color: '#FFF', fontWeight: '700' },
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12,
-    backgroundColor: Colors.card, borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  backArrow: { fontSize: 16, fontWeight: '600', color: Colors.primary },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, flex: 1, textAlign: 'center', marginHorizontal: 12 },
-  inviteBtn: { fontSize: 15, fontWeight: '700', color: Colors.primary },
   // Scroll
   scrollContent: { padding: 16 },
   // Cards
@@ -306,8 +304,11 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 13, color: Colors.textMuted },
   // Sections
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 4 },
+  sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 13, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1 },
   sectionCount: { fontSize: 13, fontWeight: '700', color: Colors.textMuted, backgroundColor: Colors.border, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  inviteBtn: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
+  inviteBtnText: { color: '#FFF', fontSize: 13, fontWeight: '700' },
   // Members
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   memberBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
