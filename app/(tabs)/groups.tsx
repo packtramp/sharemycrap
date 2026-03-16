@@ -79,17 +79,18 @@ export default function GroupsScreen() {
         memberCount: 1,
         memberIds: [user.uid],
       });
-      await setDoc(doc(db, 'groups', groupRef.id, 'members', user.uid), {
+      // Close modal immediately, write member subdoc in background
+      setGroupName('');
+      setGroupDesc('');
+      setCreateOpen(false);
+      setCreating(false);
+      fetchGroups();
+      setDoc(doc(db, 'groups', groupRef.id, 'members', user.uid), {
         role: 'admin',
         joinedAt: serverTimestamp(),
         displayName: user.displayName || '',
         email: user.email || '',
-      });
-      setGroupName('');
-      setGroupDesc('');
-      setCreateOpen(false);
-      setLoading(true);
-      fetchGroups();
+      }).catch((err) => console.error('Error writing member doc:', err));
     } catch (err) {
       console.error('Error creating group:', err);
       showAlert('Error', 'Failed to create group. Try again.');
