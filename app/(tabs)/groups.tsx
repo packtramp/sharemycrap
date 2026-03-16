@@ -32,7 +32,8 @@ const showAlert = (title: string, msg: string) => {
 export default function GroupsScreen() {
   const router = useRouter();
   const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -61,8 +62,7 @@ export default function GroupsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchGroups();
+      fetchGroups().then(() => setInitialLoad(false));
     }, [fetchGroups])
   );
 
@@ -152,7 +152,7 @@ export default function GroupsScreen() {
     </View>
   );
 
-  if (loading) {
+  if (initialLoad) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.primary} />

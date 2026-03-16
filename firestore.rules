@@ -6,13 +6,32 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Authenticated users can read approved tags
+    // Items: owner can CRUD, authenticated users can read (for browse)
+    match /items/{itemId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Groups: members can read, authenticated users can create
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid in resource.data.memberIds;
+
+      // Group members subcollection
+      match /members/{memberId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Approved tags
     match /approvedTags/{tagId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.token.admin == true;
     }
 
-    // Authenticated users can suggest tags
+    // Tag suggestions
     match /tagSuggestions/{suggestionId} {
       allow create: if request.auth != null;
       allow read, update, delete: if request.auth != null && request.auth.token.admin == true;

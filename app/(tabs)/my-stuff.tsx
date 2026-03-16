@@ -37,7 +37,8 @@ interface Group {
 export default function MyStuffScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
 
   // Select mode state
@@ -75,8 +76,7 @@ export default function MyStuffScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchItems();
+      fetchItems().then(() => setInitialLoad(false));
     }, [fetchItems])
   );
 
@@ -214,7 +214,7 @@ export default function MyStuffScreen() {
     </View>
   );
 
-  if (loading) {
+  if (initialLoad) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.primary} />
