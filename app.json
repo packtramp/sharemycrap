@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "ShareMyCrap",
+    "slug": "sharemycrap",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "sharemycrap",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#DD550C"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sharemycrap.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#DD550C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.sharemycrap.app",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
