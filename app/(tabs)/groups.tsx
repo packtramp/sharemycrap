@@ -152,14 +152,6 @@ export default function GroupsScreen() {
     </View>
   );
 
-  if (initialLoad) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
