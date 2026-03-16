@@ -27,7 +27,7 @@ const SECTIONS: SettingsSection[] = [
     items: [
       { icon: '👤', label: 'Profile', detail: 'Name, photo, phone', route: '/settings/profile' },
       { icon: '👥', label: 'My Groups', route: '/settings/groups' },
-      { icon: '🤝', label: 'My Friends', route: '/settings/friends' },
+      { icon: '🤝', label: 'My Friends', route: '/friends' },
     ],
   },
   {

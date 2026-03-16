@@ -9,6 +9,7 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -151,10 +152,11 @@ export default function MyStuffScreen() {
       );
       setShareOpen(false);
       exitSelectMode();
-      Alert.alert('Shared!', `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} shared to ${groupIdArray.length} group${groupIdArray.length > 1 ? 's' : ''}.`);
+      const msg = `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} shared to ${groupIdArray.length} group${groupIdArray.length > 1 ? 's' : ''}.`;
+      Platform.OS === 'web' ? window.alert(`Shared!\n${msg}`) : Alert.alert('Shared!', msg);
     } catch (err) {
       console.error('Error sharing items:', err);
-      Alert.alert('Error', 'Failed to share items. Please try again.');
+      Platform.OS === 'web' ? window.alert('Error\nFailed to share items. Please try again.') : Alert.alert('Error', 'Failed to share items. Please try again.');
     } finally {
       setSharing(false);
     }
@@ -162,7 +164,13 @@ export default function MyStuffScreen() {
 
   const handleAddItem = (mode: string) => {
     setFabOpen(false);
-    router.push('/(tabs)/add-item');
+    if (mode === 'ai-photo') {
+      router.push('/ai-add-item?mode=photo');
+    } else if (mode === 'ai-description') {
+      router.push('/ai-add-item?mode=text');
+    } else {
+      router.push('/(tabs)/add-item');
+    }
   };
 
   const renderItem = ({ item }: { item: Item }) => {
@@ -171,7 +179,7 @@ export default function MyStuffScreen() {
       <TouchableOpacity
         style={[styles.card, isSelected && styles.cardSelected]}
         activeOpacity={0.7}
-        onPress={() => selectMode ? toggleItemSelection(item.id) : undefined}
+        onPress={() => selectMode ? toggleItemSelection(item.id) : router.push(`/item-detail?id=${item.id}` as any)}
       >
         {selectMode && (
           <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>

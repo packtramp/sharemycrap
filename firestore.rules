@@ -1,9 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read/write their own doc
+    // Users: any authenticated user can read (for friend code lookup), only owner can write
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Friends subcollection
+    match /users/{userId}/friends/{friendId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && (request.auth.uid == userId || request.auth.uid == friendId);
     }
 
     // Items: owner can CRUD, authenticated users can read (for browse)
@@ -35,6 +42,14 @@ service cloud.firestore {
     match /tagSuggestions/{suggestionId} {
       allow create: if request.auth != null;
       allow read, update, delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Borrows: any authenticated user can read/create; only owner or borrower can update
+    match /borrows/{borrowId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null &&
+        (resource.data.ownerId == request.auth.uid || resource.data.borrowerId == request.auth.uid);
     }
   }
 }
