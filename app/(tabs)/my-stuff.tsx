@@ -8,10 +8,12 @@ import {
   Modal,
   Pressable,
   ActivityIndicator,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../../lib/firebase';
 import { Colors } from '../../constants/Colors';
@@ -26,11 +28,26 @@ interface Item {
   estimatedValue: number;
 }
 
+interface Group {
+  id: string;
+  name: string;
+  memberCount: number;
+}
+
 export default function MyStuffScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
+
+  // Select mode state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [shareOpen, setShareOpen] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const fetchItems = useCallback(async () => {
     const user = getAuth().currentUser;
@@ -63,34 +80,126 @@ export default function MyStuffScreen() {
     }, [fetchItems])
   );
 
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const toggleItemSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const fetchGroups = async () => {
+    const user = getAuth().currentUser;
+    if (!user) return;
+    setLoadingGroups(true);
+    try {
+      const q = query(
+        collection(db, 'groups'),
+        where('memberIds', 'array-contains', user.uid)
+      );
+      const snap = await getDocs(q);
+      const fetched: Group[] = snap.docs.map((d) => ({
+        id: d.id,
+        name: d.data().name || 'Unnamed Group',
+        memberCount: (d.data().memberIds as string[])?.length || 0,
+      }));
+      setGroups(fetched);
+    } catch (err) {
+      console.error('Error fetching groups:', err);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  const openShareModal = () => {
+    setSelectedGroupIds(new Set());
+    setShareOpen(true);
+    fetchGroups();
+  };
+
+  const toggleGroupSelection = (id: string) => {
+    setSelectedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleShare = async () => {
+    if (selectedGroupIds.size === 0) return;
+    setSharing(true);
+    try {
+      const groupIdArray = Array.from(selectedGroupIds);
+      const promises = Array.from(selectedIds).map((itemId) =>
+        updateDoc(doc(db, 'items', itemId), {
+          sharedWithGroups: arrayUnion(...groupIdArray),
+          active: true,
+        })
+      );
+      await Promise.all(promises);
+      setItems((prev) =>
+        prev.map((item) =>
+          selectedIds.has(item.id) ? { ...item, active: true } : item
+        )
+      );
+      setShareOpen(false);
+      exitSelectMode();
+      Alert.alert('Shared!', `${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''} shared to ${groupIdArray.length} group${groupIdArray.length > 1 ? 's' : ''}.`);
+    } catch (err) {
+      console.error('Error sharing items:', err);
+      Alert.alert('Error', 'Failed to share items. Please try again.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const handleAddItem = (mode: string) => {
     setFabOpen(false);
     router.push('/(tabs)/add-item');
   };
 
-  const renderItem = ({ item }: { item: Item }) => (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7}>
-      <View style={styles.photoPlaceholder}>
-        <Text style={styles.photoIcon}>📷</Text>
-      </View>
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={styles.cardCategory} numberOfLines={1}>
-          {item.category || 'No category'}
-        </Text>
-        <View style={styles.cardFooter}>
-          <View style={[styles.statusBadge, item.active ? styles.statusActive : styles.statusInactive]}>
-            <Text style={[styles.statusText, item.active ? styles.statusTextActive : styles.statusTextInactive]}>
-              {item.active ? 'Shared' : 'Private'}
-            </Text>
+  const renderItem = ({ item }: { item: Item }) => {
+    const isSelected = selectedIds.has(item.id);
+    return (
+      <TouchableOpacity
+        style={[styles.card, isSelected && styles.cardSelected]}
+        activeOpacity={0.7}
+        onPress={() => selectMode ? toggleItemSelection(item.id) : undefined}
+      >
+        {selectMode && (
+          <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+            {isSelected && <Text style={styles.checkmark}>✓</Text>}
           </View>
-          <Text style={styles.conditionText}>{item.condition}</Text>
+        )}
+        <View style={styles.photoPlaceholder}>
+          <Text style={styles.photoIcon}>📷</Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={styles.cardCategory} numberOfLines={1}>
+            {item.category || 'No category'}
+          </Text>
+          <View style={styles.cardFooter}>
+            <View style={[styles.statusBadge, item.active ? styles.statusActive : styles.statusInactive]}>
+              <Text style={[styles.statusText, item.active ? styles.statusTextActive : styles.statusTextInactive]}>
+                {item.active ? 'Shared' : 'Private'}
+              </Text>
+            </View>
+            <Text style={styles.conditionText}>{item.condition}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -117,10 +226,40 @@ export default function MyStuffScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Stuff</Text>
-        <Text style={styles.headerCount}>
-          {items.length} {items.length === 1 ? 'item' : 'items'}
-        </Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>
+            {selectMode ? `${selectedIds.size} selected` : 'My Stuff'}
+          </Text>
+        </View>
+        <View style={styles.headerRight}>
+          {selectMode ? (
+            <>
+              <TouchableOpacity
+                style={[styles.shareButton, selectedIds.size === 0 && styles.shareButtonDisabled]}
+                onPress={openShareModal}
+                disabled={selectedIds.size === 0}
+              >
+                <Text style={[styles.shareButtonText, selectedIds.size === 0 && styles.shareButtonTextDisabled]}>
+                  Share to...
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={exitSelectMode} style={styles.cancelButton}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.headerCount}>
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </Text>
+              {items.length > 0 && (
+                <TouchableOpacity onPress={() => setSelectMode(true)} style={styles.selectButton}>
+                  <Text style={styles.selectButtonText}>Select</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
       </View>
 
       {/* Item List or Empty State */}
@@ -133,17 +272,20 @@ export default function MyStuffScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          extraData={selectedIds}
         />
       )}
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setFabOpen(true)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {/* FAB - hidden in select mode */}
+      {!selectMode && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setFabOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      )}
 
       {/* FAB Menu Modal */}
       <Modal visible={fabOpen} transparent animationType="fade">
@@ -164,6 +306,70 @@ export default function MyStuffScreen() {
               <Text style={styles.fabMenuText}>Add Item (AI Description)</Text>
             </TouchableOpacity>
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* Share To Modal */}
+      <Modal visible={shareOpen} transparent animationType="slide">
+        <Pressable style={styles.shareOverlay} onPress={() => setShareOpen(false)}>
+          <Pressable style={styles.shareSheet} onPress={() => {}}>
+            <View style={styles.shareHandle} />
+            <Text style={styles.shareTitle}>
+              Share {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} to...
+            </Text>
+
+            <ScrollView style={styles.shareScrollArea}>
+              {/* Groups Section */}
+              <Text style={styles.shareSectionLabel}>GROUPS</Text>
+              {loadingGroups ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 16 }} />
+              ) : groups.length === 0 ? (
+                <Text style={styles.shareEmptyText}>No groups yet. Create or join a group first.</Text>
+              ) : (
+                groups.map((group) => {
+                  const isChecked = selectedGroupIds.has(group.id);
+                  return (
+                    <TouchableOpacity
+                      key={group.id}
+                      style={styles.shareRow}
+                      onPress={() => toggleGroupSelection(group.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.checkbox, isChecked && styles.checkboxSelected]}>
+                        {isChecked && <Text style={styles.checkmark}>✓</Text>}
+                      </View>
+                      <View style={styles.shareRowContent}>
+                        <Text style={styles.shareRowName}>{group.name}</Text>
+                        <Text style={styles.shareRowMeta}>
+                          {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+
+              {/* Friends Section */}
+              <Text style={[styles.shareSectionLabel, { marginTop: 20 }]}>FRIENDS</Text>
+              <Text style={styles.shareEmptyText}>Friends coming in Phase 2</Text>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.shareConfirmButton, selectedGroupIds.size === 0 && styles.shareConfirmDisabled]}
+              onPress={handleShare}
+              disabled={selectedGroupIds.size === 0 || sharing}
+            >
+              {sharing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.shareConfirmText}>
+                  {selectedGroupIds.size === 0
+                    ? 'Select groups'
+                    : `Share to ${selectedGroupIds.size} group${selectedGroupIds.size !== 1 ? 's' : ''}`}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </Pressable>
         </Pressable>
       </Modal>
     </View>
@@ -189,6 +395,14 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
@@ -198,6 +412,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textMuted,
     fontWeight: '600',
+  },
+  selectButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  selectButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  shareButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  shareButtonDisabled: {
+    backgroundColor: Colors.border,
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  shareButtonTextDisabled: {
+    color: Colors.textMuted,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -209,11 +458,37 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     padding: 12,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
+  },
+  cardSelected: {
+    backgroundColor: 'rgba(221,85,12,0.06)',
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  checkboxSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: -1,
   },
   photoPlaceholder: {
     width: 72,
@@ -369,5 +644,82 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Colors.border,
     marginHorizontal: 16,
+  },
+  // Share Modal
+  shareOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  shareSheet: {
+    backgroundColor: Colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    maxHeight: '70%',
+  },
+  shareHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  shareTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: 16,
+  },
+  shareScrollArea: {
+    marginBottom: 16,
+  },
+  shareSectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  shareEmptyText: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  shareRowContent: {
+    flex: 1,
+  },
+  shareRowName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  shareRowMeta: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 1,
+  },
+  shareConfirmButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  shareConfirmDisabled: {
+    backgroundColor: Colors.border,
+  },
+  shareConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
