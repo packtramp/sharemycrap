@@ -51,10 +51,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="activity"
+        name="groups"
         options={{
-          title: 'Activity',
-          tabBarIcon: ({ focused }) => <TabIcon icon="🔔" focused={focused} />,
+          title: 'Groups',
+          tabBarIcon: ({ focused }) => <TabIcon icon="👥" focused={focused} />,
         }}
       />
       <Tabs.Screen
