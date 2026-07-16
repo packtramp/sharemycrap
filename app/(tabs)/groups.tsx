@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, Modal,
   Pressable, ActivityIndicator, TextInput, Platform, Alert,
@@ -8,8 +8,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   collection, query, where, getDocs, addDoc, serverTimestamp, doc, setDoc,
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { db } from '../../lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, db } from '../../lib/firebase';
 import { Colors } from '../../constants/Colors';
 
 interface Group {
@@ -33,7 +33,6 @@ export default function GroupsScreen() {
   const router = useRouter();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -41,10 +40,12 @@ export default function GroupsScreen() {
   const [groupDesc, setGroupDesc] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [creating, setCreating] = useState(false);
+  const currentUser = useRef<User | null>(null);
 
   const fetchGroups = useCallback(async () => {
-    const user = getAuth().currentUser;
-    if (!user) { setLoading(false); setInitialLoad(false); return; }
+    const user = currentUser.current;
+    if (!user) return;
+    setLoading(true);
     try {
       const q = query(
         collection(db, 'groups'),
@@ -57,28 +58,33 @@ export default function GroupsScreen() {
       console.error('Error fetching groups:', err);
     } finally {
       setLoading(false);
-      setInitialLoad(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchGroups();
-    }, [fetchGroups])
-  );
-
-  // Retry fetch when auth becomes ready (handles race condition)
+  // Auth state listener — fetch groups as soon as user is confirmed
   useEffect(() => {
-    const unsub = getAuth().onAuthStateChanged((user) => {
-      if (user && groups.length === 0 && !loading) {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      currentUser.current = user;
+      if (user) {
         fetchGroups();
+      } else {
+        setGroups([]);
       }
     });
     return unsub;
-  }, [fetchGroups, groups.length, loading]);
+  }, [fetchGroups]);
+
+  // Refetch when tab is focused (e.g., after creating a group elsewhere)
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser.current) {
+        fetchGroups();
+      }
+    }, [fetchGroups])
+  );
 
   const handleCreate = async () => {
-    const user = getAuth().currentUser;
+    const user = currentUser.current;
     if (!user || !groupName.trim()) return;
     setCreating(true);
     try {
@@ -120,7 +126,7 @@ export default function GroupsScreen() {
   const openJoin = () => { setFabOpen(false); setJoinOpen(true); };
 
   const getUserRole = (group: Group) => {
-    const uid = getAuth().currentUser?.uid;
+    const uid = currentUser.current?.uid;
     return group.createdBy === uid ? 'Admin' : 'Member';
   };
 
