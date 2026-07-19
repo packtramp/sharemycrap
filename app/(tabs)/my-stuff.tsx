@@ -168,6 +168,8 @@ export default function MyStuffScreen() {
       router.push('/ai-add-item?mode=photo');
     } else if (mode === 'ai-description') {
       router.push('/ai-add-item?mode=text');
+    } else if (mode === 'scan') {
+      router.push('/scan-item');
     } else {
       router.push('/(tabs)/add-item');
     }
@@ -307,6 +309,11 @@ export default function MyStuffScreen() {
             <TouchableOpacity style={styles.fabMenuItem} onPress={() => handleAddItem('ai-photo')}>
               <Text style={styles.fabMenuIcon}>📸</Text>
               <Text style={styles.fabMenuText}>Add Item (AI Photo)</Text>
+            </TouchableOpacity>
+            <View style={styles.fabMenuDivider} />
+            <TouchableOpacity style={styles.fabMenuItem} onPress={() => handleAddItem('scan')}>
+              <Text style={styles.fabMenuIcon}>📷</Text>
+              <Text style={styles.fabMenuText}>Add Item (Scan Barcode)</Text>
             </TouchableOpacity>
             <View style={styles.fabMenuDivider} />
             <TouchableOpacity style={styles.fabMenuItem} onPress={() => handleAddItem('ai-description')}>

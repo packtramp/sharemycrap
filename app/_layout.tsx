@@ -59,6 +59,7 @@ export default function RootLayout() {
         <Stack.Screen name="friends" options={{ title: 'My Friends' }} />
         <Stack.Screen name="feedback" options={{ title: 'Send Feedback' }} />
         <Stack.Screen name="ai-add-item" options={{ title: 'AI Add Item' }} />
+        <Stack.Screen name="scan-item" options={{ title: 'Scan Barcode' }} />
       </Stack>
     </>
   );
